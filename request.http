@@ -1,0 +1,10 @@
+
+
+###
+POST http://localhost:3000/send/text
+Content-Type: application/json  
+
+{
+  "to": "5515996920983",
+  "body": "hello"
+}
