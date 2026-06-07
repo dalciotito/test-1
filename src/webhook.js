@@ -44,6 +44,7 @@ router.post('/', (req, res) => {
     return res.sendStatus(404);
   }
 
+  console.log(`incoming webhook`);
   // Respond fast to Meta, then process events asynchronously
   res.sendStatus(200);
 
@@ -54,6 +55,7 @@ router.post('/', (req, res) => {
       for (const c of value.contacts || []) contactsById[c.wa_id] = c;
 
       for (const message of value.messages || []) {
+        console.log(`message type=${message.type} from=${message.from} id=${message.id}`);
         storage.append({
           kind: 'message',
           from: message.from,
