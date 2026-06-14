@@ -86,6 +86,8 @@ async function handle(message, contact) {
 
   if (message.type === 'text') {
     userText = message.text?.body || '';
+
+    console.log(`message type=text from=${from} name=${name} text=${userText}`);
   } else if (message.type === 'interactive') {
     const i = message.interactive || {};
     if (i.type === 'button_reply') {
