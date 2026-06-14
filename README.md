@@ -44,6 +44,8 @@ APP_SECRET=your_meta_app_secret
 PORT=3000
 ```
 
+You can also use `META_ACCESS_TOKEN` or `ACCESS_TOKEN` instead of `WHATSAPP_TOKEN`.
+
 ## 3. Install and run
 
 ```bash
@@ -94,6 +96,7 @@ To customize replies and menus, edit the constants at the top of `src/bot.js`.
 | Method | Path             | Body                                                              | Description                          |
 | ------ | ---------------- | ----------------------------------------------------------------- | ------------------------------------ |
 | GET    | `/health`        | —                                                                 | Health check                         |
+| GET    | `/auth/check`    | —                                                                 | Validate Meta token + phone number ID |
 | GET    | `/webhook`       | (Meta handshake)                                                  | Webhook verification                 |
 | POST   | `/webhook`       | (Meta event)                                                      | Receives messages and statuses       |
 | POST   | `/send/text`     | `{ "to": "55119...", "body": "hi", "preview_url": false }`        | Send a free-form text                |
@@ -107,6 +110,12 @@ Example:
 curl -X POST http://localhost:3000/send/text \
   -H 'content-type: application/json' \
   -d '{"to":"5511999999999","body":"hello from the API"}'
+```
+
+Auth check example:
+
+```bash
+curl http://localhost:3000/auth/check
 ```
 
 > Free-form text only works inside the 24h customer service window (i.e. after the user messaged the bot). Outside that window, you must use `/send/template` with a template approved in **WhatsApp → Message Templates**.
@@ -140,3 +149,4 @@ Dockerfile
 - **`recipient phone number not in allowed list`** — add the recipient in **WhatsApp → API Setup → To** until the app is fully approved.
 - **`message failed to send: re-engagement message`** — the 24h window expired; send a template instead.
 - **Bot doesn't reply** — make sure you subscribed to the `messages` webhook field in the dashboard and that ngrok is still running with the URL you registered.
+- **`Authentication Error` / `OAuthException` code `190`** — token is invalid/expired or belongs to a different app/WABA than `PHONE_NUMBER_ID`. Regenerate token, remove accidental `Bearer ` prefix/extra spaces, and verify the phone number ID is from the same WhatsApp product setup.

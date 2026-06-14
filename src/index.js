@@ -17,6 +17,18 @@ app.use(
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
+app.get('/auth/check', async (_req, res) => {
+  try {
+    const result = await wa.verifyAuth();
+    res.json(result);
+  } catch (err) {
+    res.status(401).json({
+      ok: false,
+      error: err.response?.data || err.message,
+    });
+  }
+});
+
 // Meta webhook (register this URL in the Meta App dashboard)
 app.use('/webhook', webhook);
 

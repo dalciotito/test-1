@@ -2,11 +2,81 @@ const axios = require('axios');
 
 const API_VERSION = process.env.WHATSAPP_API_VERSION || 'v21.0';
 const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
-const TOKEN = process.env.WHATSAPP_TOKEN;
+const RAW_TOKEN =
+  process.env.WHATSAPP_TOKEN ||
+  process.env.META_ACCESS_TOKEN ||
+  process.env.ACCESS_TOKEN;
+
+function normalizeToken(token) {
+  if (!token) return '';
+  // Handle common copy/paste issues from dashboards and env UIs.
+  return token
+    .trim()
+    .replace(/^Bearer\s+/i, '')
+    .replace(/^"|"$/g, '');
+}
+
+const TOKEN = normalizeToken(RAW_TOKEN);
+
+function enrichAxiosError(err) {
+  const metaError = err?.response?.data?.error;
+  if (!metaError) return err;
+  if (metaError.type === 'OAuthException' && Number(metaError.code) === 190) {
+    const wrapped = new Error(
+      'Meta OAuth authentication failed (code 190). Check WHATSAPP_TOKEN (or META_ACCESS_TOKEN/ACCESS_TOKEN), ensure it is valid and not expired, and confirm PHONE_NUMBER_ID belongs to the same WhatsApp Business account.'
+    );
+    wrapped.cause = err;
+    wrapped.response = err.response;
+    return wrapped;
+  }
+  return err;
+}
+
+async function postMessages(payload) {
+  try {
+    const { data } = await client().post('/messages', payload);
+    return data;
+  } catch (err) {
+    throw enrichAxiosError(err);
+  }
+}
+
+async function verifyAuth() {
+  if (!PHONE_NUMBER_ID || !TOKEN) {
+    throw new Error(
+      'Missing PHONE_NUMBER_ID or access token in environment (WHATSAPP_TOKEN, META_ACCESS_TOKEN, ACCESS_TOKEN)'
+    );
+  }
+
+  try {
+    const { data } = await axios.get(
+      `https://graph.facebook.com/${API_VERSION}/${PHONE_NUMBER_ID}`,
+      {
+        params: {
+          fields: 'id,display_phone_number,verified_name,code_verification_status',
+        },
+        headers: {
+          Authorization: `Bearer ${TOKEN}`,
+        },
+      }
+    );
+
+    return {
+      ok: true,
+      apiVersion: API_VERSION,
+      phoneNumberId: PHONE_NUMBER_ID,
+      account: data,
+    };
+  } catch (err) {
+    throw enrichAxiosError(err);
+  }
+}
 
 function client() {
   if (!PHONE_NUMBER_ID || !TOKEN) {
-    throw new Error('Missing PHONE_NUMBER_ID or WHATSAPP_TOKEN in environment');
+    throw new Error(
+      'Missing PHONE_NUMBER_ID or access token in environment (WHATSAPP_TOKEN, META_ACCESS_TOKEN, ACCESS_TOKEN)'
+    );
   }
   return axios.create({
     baseURL: `https://graph.facebook.com/${API_VERSION}/${PHONE_NUMBER_ID}`,
@@ -18,18 +88,17 @@ function client() {
 }
 
 async function sendText(to, body, previewUrl = false) {
-  const { data } = await client().post('/messages', {
+  return postMessages({
     messaging_product: 'whatsapp',
     recipient_type: 'individual',
     to,
     type: 'text',
     text: { preview_url: previewUrl, body },
   });
-  return data;
 }
 
 async function sendTemplate(to, templateName, languageCode = 'en_US', components = []) {
-  const { data } = await client().post('/messages', {
+  return postMessages({
     messaging_product: 'whatsapp',
     to,
     type: 'template',
@@ -39,7 +108,6 @@ async function sendTemplate(to, templateName, languageCode = 'en_US', components
       ...(components.length ? { components } : {}),
     },
   });
-  return data;
 }
 
 async function sendMedia(to, type, { id, link, caption, filename }) {
@@ -53,13 +121,12 @@ async function sendMedia(to, type, { id, link, caption, filename }) {
   if (caption && (type === 'image' || type === 'document' || type === 'video')) media.caption = caption;
   if (filename && type === 'document') media.filename = filename;
 
-  const { data } = await client().post('/messages', {
+  return postMessages({
     messaging_product: 'whatsapp',
     to,
     type,
     [type]: media,
   });
-  return data;
 }
 
 async function markRead(messageId, { typing = false } = {}) {
@@ -69,8 +136,7 @@ async function markRead(messageId, { typing = false } = {}) {
     message_id: messageId,
   };
   if (typing) body.typing_indicator = { type: 'text' };
-  const { data } = await client().post('/messages', body);
-  return data;
+  return postMessages(body);
 }
 
 // buttons: [{ id, title }] (max 3, title <= 20 chars)
@@ -88,14 +154,13 @@ async function sendButtons(to, bodyText, buttons, { header, footer } = {}) {
   if (header) interactive.header = { type: 'text', text: header };
   if (footer) interactive.footer = { text: footer };
 
-  const { data } = await client().post('/messages', {
+  return postMessages({
     messaging_product: 'whatsapp',
     recipient_type: 'individual',
     to,
     type: 'interactive',
     interactive,
   });
-  return data;
 }
 
 // sections: [{ title, rows: [{ id, title, description? }] }]
@@ -108,14 +173,21 @@ async function sendList(to, bodyText, buttonText, sections, { header, footer } =
   if (header) interactive.header = { type: 'text', text: header };
   if (footer) interactive.footer = { text: footer };
 
-  const { data } = await client().post('/messages', {
+  return postMessages({
     messaging_product: 'whatsapp',
     recipient_type: 'individual',
     to,
     type: 'interactive',
     interactive,
   });
-  return data;
 }
 
-module.exports = { sendText, sendTemplate, sendMedia, markRead, sendButtons, sendList };
+module.exports = {
+  sendText,
+  sendTemplate,
+  sendMedia,
+  markRead,
+  sendButtons,
+  sendList,
+  verifyAuth,
+};
