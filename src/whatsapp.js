@@ -1,20 +1,26 @@
 const axios = require('axios');
 
 const API_VERSION = process.env.WHATSAPP_API_VERSION || 'v21.0';
-const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
+const RAW_PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
 const RAW_TOKEN =
   process.env.WHATSAPP_TOKEN ||
   process.env.META_ACCESS_TOKEN ||
   process.env.ACCESS_TOKEN;
 
-function normalizeToken(token) {
-  if (!token) return '';
+function normalizeEnvValue(value) {
+  if (!value) return '';
   // Handle common copy/paste issues from dashboards and env UIs.
-  return token
+  return value
     .trim()
-    .replace(/^Bearer\s+/i, '')
     .replace(/^"|"$/g, '');
 }
+
+function normalizeToken(token) {
+  if (!token) return '';
+  return normalizeEnvValue(token).replace(/^Bearer\s+/i, '');
+}
+
+const PHONE_NUMBER_ID = normalizeEnvValue(RAW_PHONE_NUMBER_ID);
 
 const TOKEN = normalizeToken(RAW_TOKEN);
 
@@ -29,6 +35,21 @@ function enrichAxiosError(err) {
     wrapped.response = err.response;
     return wrapped;
   }
+
+  const isUnsupportedPostRequest =
+    metaError.type === 'GraphMethodException' &&
+    Number(metaError.code) === 100 &&
+    /unsupported post request/i.test(metaError.message || '');
+
+  if (isUnsupportedPostRequest) {
+    const wrapped = new Error(
+      `Meta rejected the PHONE_NUMBER_ID (${PHONE_NUMBER_ID}) for /messages. Verify PHONE_NUMBER_ID from WhatsApp > API Setup (not WABA ID or App ID), and ensure the token has whatsapp_business_messaging permission and access to this phone number.`
+    );
+    wrapped.cause = err;
+    wrapped.response = err.response;
+    return wrapped;
+  }
+
   return err;
 }
 

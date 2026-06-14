@@ -150,3 +150,4 @@ Dockerfile
 - **`message failed to send: re-engagement message`** — the 24h window expired; send a template instead.
 - **Bot doesn't reply** — make sure you subscribed to the `messages` webhook field in the dashboard and that ngrok is still running with the URL you registered.
 - **`Authentication Error` / `OAuthException` code `190`** — token is invalid/expired or belongs to a different app/WABA than `PHONE_NUMBER_ID`. Regenerate token, remove accidental `Bearer ` prefix/extra spaces, and verify the phone number ID is from the same WhatsApp product setup.
+- **`Unsupported post request. Object with ID ...`** — `PHONE_NUMBER_ID` is incorrect (often WABA ID/App ID by mistake) or your token does not have access to that phone number. Re-copy **Phone number ID** from **WhatsApp → API Setup**, and use a token with `whatsapp_business_messaging` permission tied to the same WhatsApp Business assets.
